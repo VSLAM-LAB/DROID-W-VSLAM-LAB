@@ -1,14 +1,24 @@
 from setuptools import setup
-from torch.utils.cpp_extension import BuildExtension, CUDAExtension
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension, include_paths, library_paths
+import os.path as osp
+import torch
+import os
 
 import os.path as osp
 ROOT = osp.dirname(osp.abspath(__file__))
+torch_include_dirs = include_paths()
+torch_library_dirs = library_paths()
+conda_prefix = os.environ.get("PREFIX", os.environ.get("CONDA_PREFIX", ""))
+eigen_path = osp.join(conda_prefix, 'include', 'eigen3')
 
 setup(
     name='droid_backends',
     ext_modules=[
         CUDAExtension('droid_backends',
-            include_dirs=[osp.join(ROOT, 'thirdparty/lietorch/eigen')],
+            include_dirs=torch_include_dirs + [
+                eigen_path,
+                osp.join(ROOT, 'src')
+            ],
             sources=[
                 'src/lib/droid.cpp',
                 'src/lib/droid_kernels.cu',
@@ -16,8 +26,9 @@ setup(
                 'src/lib/altcorr_kernel.cu',
             ],
             extra_compile_args={
-                'cxx': ['-O3'],
+                'cxx': ['-O3', '-D_GLIBCXX_USE_CXX11_ABI=1'],
                 'nvcc': ['-O3',
+                    '-D_GLIBCXX_USE_CXX11_ABI=1',
                     '-gencode=arch=compute_60,code=sm_60',
                     '-gencode=arch=compute_61,code=sm_61',
                     '-gencode=arch=compute_70,code=sm_70',
@@ -27,5 +38,5 @@ setup(
                 ]
             }),
     ],
-    cmdclass={ 'build_ext' : BuildExtension }
+    cmdclass={'build_ext': BuildExtension.with_options(no_python_abi_suffix=True)},
 )
