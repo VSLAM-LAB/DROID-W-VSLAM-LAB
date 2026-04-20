@@ -3,4 +3,4 @@
 	url = https://github.com/VSLAM-LAB/diff-gaussian-rasterization-w-pose.git
 [submodule "thirdparty/simple-knn"]
 	path = thirdparty/simple-knn
-	url = git@github.com:VSLAM-LAB/simple-knn.git
+	url = https://github.com/VSLAM-LAB/simple-knn.git
