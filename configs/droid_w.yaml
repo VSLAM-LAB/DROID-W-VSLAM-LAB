@@ -1,12 +1,12 @@
 verbose: True
 gui: False
-stride: 1            # use every X image from the dataset 
+stride: 1            # use every X image from the dataset
 max_frames: -1       # use the first X images from the dataset, -1 means using all
 setup_seed: 43
 fast_mode: True
 device: "cuda:0"
-save_gt_poses: True
-droidvis: False
+save_gt_poses: False
+droidvis: True
 debug: False
 
 traj_filler:
@@ -60,7 +60,7 @@ mapping:
 
   model_params:
     sh_degree: 0
-    
+
   pipeline_params:
     convert_SHs_python: False
     compute_cov3D_python: False
@@ -130,7 +130,7 @@ tracking:
     gba_weight_decay: 0.002
     enable_affine_transform: True
     enable_bidirectional_uncer: False
-    
+
   force_keyframe_every_n_frames: 9 # set to negative value if you don't want to force to insert keyframes
   nb_ref_frame_metric_depth_filtering: 6 # number of reference frames for filtering high uncertainty metric depth points
 
@@ -153,7 +153,7 @@ cam:
 mono_prior:
   depth: 'metric3d_vit_large'
   save_depth: False
-  feature_extractor: 'dinov2_reg_small_fine' 
+  feature_extractor: 'dinov2_reg_small_fine'
   save_feature: False
 
 data:

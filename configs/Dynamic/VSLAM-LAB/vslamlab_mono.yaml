@@ -1,0 +1,18 @@
+inherit_from: ./configs/droid_w.yaml
+
+dataset: 'vslamlab_mono'
+
+data:
+  output: ./Outputs/VSLAM-LAB
+
+cam:  #intrinsic is slightly different per seq
+  H_out: 360
+  W_out: 640
+
+tracking:
+  buffer: 500     # maximum number of keyframes that can be stored
+  force_keyframe_every_n_frames: -1 # set to negative value if you don't want to force to insert keyframes
+  uncertainty_params:
+    gamma_depth: 0.01
+
+scene: vslamlab_mono

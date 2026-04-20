@@ -16,7 +16,7 @@ from src.utils.datasets import BaseDataset
 from src.tracker import Tracker
 from src.mapper import Mapper
 from src.backend import Backend
-from src.utils.datasets import RGB_NoPose
+from src.utils.datasets import RGB_NoPose, VSLAM_LAB_mono
 from src.gui import gui_utils, slam_gui
 from thirdparty.gaussian_splatting.scene.gaussian_model import GaussianModel
 from torch.utils.tensorboard import SummaryWriter
@@ -91,7 +91,7 @@ class SLAM:
         for file in os.listdir(self.save_dir):
             if file.startswith("events.out.tfevents."):
                 os.remove(os.path.join(self.save_dir, file))
-                
+
         event_writer = SummaryWriter(self.save_dir)
         self.tracker = Tracker(self, pipe, event_writer)
         self.printer.print("Tracking Triggered!", FontColor.TRACKER)
@@ -150,7 +150,7 @@ class SLAM:
             and self.cfg["mapping"]["eval_before_final_ba"]
         ):
             self.video.save_video(f"{self.save_dir}/video.npz")
-            if not isinstance(self.stream, RGB_NoPose):
+            if not isinstance(self.stream, RGB_NoPose) and not isinstance(self.stream, VSLAM_LAB_mono):
                 try:
                     ate_statistics, global_scale, r_a, t_a = kf_traj_eval(
                         f"{self.save_dir}/video.npz",
@@ -177,7 +177,7 @@ class SLAM:
             self.backend()
 
         self.video.save_video(f"{self.save_dir}/video.npz")
-        if not isinstance(self.stream, RGB_NoPose):
+        if not isinstance(self.stream, RGB_NoPose) and not isinstance(self.stream, VSLAM_LAB_mono):
             try:
                 ate_statistics, global_scale, r_a, t_a = kf_traj_eval(
                     f"{self.save_dir}/video.npz",
@@ -211,9 +211,9 @@ class SLAM:
                 fast_mode=self.cfg['fast_mode'],
             )
             full_traj_eval(traj_est, self.stream, self.printer, self.logger, f"{self.save_dir}/traj", "full_traj")
-            
+
             self.mapper.gaussians.save_ply(f"{self.save_dir}/final_gs.ply")
-            
+
         else:
             traj_est = None
             with timer.section("Full Trajectory Filling"):
@@ -224,7 +224,9 @@ class SLAM:
                     self.stream,
                     fast_mode=True,
                 )
-            full_traj_eval(traj_est, self.stream, self.printer, self.logger, f"{self.save_dir}/traj", "full_traj")
+
+            keyframe_csv = f"{self.cfg['exp_folder']}/{str(self.cfg['exp_it']).zfill(5)}_KeyFrameTrajectory.csv"
+            full_traj_eval(traj_est, self.stream, self.printer, self.logger, f"{self.save_dir}/traj", "full_traj", keyframe_csv)
 
         self.printer.print("Metrics Evaluation Done!", FontColor.EVAL)
         timer._report_summary(self.save_dir)
@@ -334,12 +336,12 @@ class SLAM:
 
         for p in processes:
             p.join()
-        
+
         # detect if the visualizer is still running
         if self.cfg['droidvis'] and self.visualizer.is_alive():
             exit_event.set()
             self.visualizer.join(timeout=10)
-        
+
         self.printer.terminate()
 
         for process in mp.active_children():

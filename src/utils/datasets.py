@@ -2,6 +2,7 @@ import glob
 import os
 import math
 
+import pandas as pd
 import cv2
 import numpy as np
 import torch
@@ -50,16 +51,16 @@ def load_metric_depth(idx,path):
     mono_depth_path = f"{path}/mono_priors/depths/{idx:05d}.npy"
     mono_depth = np.load(mono_depth_path)
     mono_depth_tensor = torch.from_numpy(mono_depth)
-    
-    return mono_depth_tensor  
+
+    return mono_depth_tensor
 
 def load_img_feature(idx,path,suffix=''):
     # image features
     feat_path = f"{path}/mono_priors/features/{idx:05d}{suffix}.npy"
     feat = np.load(feat_path)
     feat_tensor = torch.from_numpy(feat)
-    
-    return feat_tensor  
+
+    return feat_tensor
 
 
 def get_dataset(cfg, device='cuda:0'):
@@ -160,21 +161,21 @@ class BaseDataset(Dataset):
         intrinsic[0] *= W_out_with_edge / self.W
         intrinsic[1] *= H_out_with_edge / self.H
         intrinsic[2] *= W_out_with_edge / self.W
-        intrinsic[3] *= H_out_with_edge / self.H   
+        intrinsic[3] *= H_out_with_edge / self.H
         if self.W_edge > 0:
             intrinsic[2] -= self.W_edge
         if self.H_edge > 0:
-            intrinsic[3] -= self.H_edge   
-        return intrinsic 
-    
+            intrinsic[3] -= self.H_edge
+        return intrinsic
+
     def get_intrinsic_full_resol(self):
         intrinsic = torch.as_tensor([self.fx_orig, self.fy_orig, self.cx_orig, self.cy_orig]).float()
         if self.W_edge > 0:
             intrinsic[2] -= self.W_edge_full
         if self.H_edge > 0:
             intrinsic[3] -= self.H_edge_full
-        return intrinsic 
-    
+        return intrinsic
+
     def get_color_full_resol(self,index):
         # not used now
         color_path = self.color_paths[index]
@@ -413,7 +414,7 @@ class TUM_RGBD(BaseDataset):
         self.w2c_first_pose = inv_pose
 
         return images, depths, poses
-    
+
     def correct_gt_pose_bonn(self, T):
         """Specific operation for Bonn dynamic dataset"""
         Tm = np.array([[1.0157, 0.1828, -0.2389, 0.0113],
@@ -430,12 +431,12 @@ class TUM_RGBD(BaseDataset):
 
     def pose_matrix_from_quaternion(self, pvec):
         """ convert 4x4 pose matrix to (t, q) """
-   
+
         pose = np.eye(4)
         pose[:3, :3] = Rotation.from_quat(pvec[3:]).as_matrix()
         pose[:3, 3] = pvec[:3]
         return pose
-    
+
     def save_gt_poses(self, path, poses):
         # convert rotation matrix to quaternions, save to txt file
         idx = 0
@@ -587,6 +588,38 @@ class Dycheck(BaseDataset):
 
         return c2w_mats
 
+class VSLAM_LAB_mono(BaseDataset):
+    def __init__(self, cfg, device='cuda:0'
+                 ):
+        super(VSLAM_LAB_mono, self).__init__(cfg, device)
+        cam_name = cfg['cam_name']
+        rgb_csv = cfg['rgb_csv']
+        df = pd.read_csv(rgb_csv)
+        image_list = df[f'path_{cam_name}'].to_list()
+        timestamps = (df[f'ts_{cam_name} (ns)'] / 1e9).to_list()
+
+        self.depth_paths = None
+        self.poses = None
+
+        stride = cfg['stride']
+        max_frames = cfg['max_frames']
+        if max_frames < 0:
+            max_frames = len(image_list)
+
+        image_list = image_list[:max_frames][::stride]
+        timestamps = timestamps[:max_frames][::stride]
+
+        self.color_paths = []
+        sequence_path = cfg['sequence_path']
+        output_folder = cfg["data"]["output"] + "/" + cfg["scene"]
+        with open(os.path.join(output_folder, 'timestamps.txt'), 'w') as f:
+            for idx, imrel in enumerate(image_list  ):
+                self.color_paths.append(sequence_path / imrel)
+                timestamp = timestamps[idx]
+                f.write(f"{timestamp}\n")
+        self.n_img = len(self.color_paths)
+        self.timestamps = timestamps
+        print("INFO: {} images got!".format(self.n_img))
 
 dataset_dict = {
     "tumrgbd": TUM_RGBD,
@@ -594,4 +627,5 @@ dataset_dict = {
     "youtube": RGB_NoPose,
     "dycheck": Dycheck,
     "droidw": RGB_NoPose,
+    "vslamlab_mono": VSLAM_LAB_mono,
 }

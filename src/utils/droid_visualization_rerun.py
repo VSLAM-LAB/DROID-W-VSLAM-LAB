@@ -10,8 +10,7 @@ import shutil
 import subprocess
 
 # --- headless safety (no Qt/GUI on cluster) ---
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.pop("DISPLAY", None)
+# Note: do NOT pop DISPLAY or force offscreen when running locally with rr.spawn()
 
 # ---- helpers to draw a camera frustum as 3D line segments ----
 _CAM_POINTS = np.array([
@@ -77,23 +76,17 @@ def droid_visualization_rerun(
     torch.cuda.set_device(device)
     _rr_init(app_id)
 
-    # Start a local web server on the node (no GUI/X11 required)
-    started_server = False
+    # Launch the native rerun viewer (local use)
+    viewer_launched = False
     try:
-        rr.serve_web(port=web_port, open_browser=False)
-        started_server = True
-        print(f"[Rerun] Web server on http://127.0.0.1:{web_port}")
-    except TypeError:
-        # Older versions: fall back to serve() without args (binds a default port)
-        try:
-            rr.serve()
-            started_server = True
-            print("[Rerun] Started legacy rr.serve() (port is chosen by Rerun; check logs).")
-        except Exception as e:
-            print(f"[Rerun] Could not start web server: {e}")
+        rr.spawn()
+        viewer_launched = True
+        print("[Rerun] Native viewer launched.")
+    except Exception as e:
+        print(f"[Rerun] Could not launch viewer: {e}")
 
-    # Optional: record to file for later playback
-    if record_path:
+    # Record to file only if viewer didn't launch (rr.save overrides the viewer sink)
+    if record_path and not viewer_launched:
         try:
             rr.save(record_path)
             print(f"[Rerun] Recording to {record_path}")

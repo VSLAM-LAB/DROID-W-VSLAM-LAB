@@ -50,7 +50,7 @@ def align_kf_traj(npz_path,stream,return_full_est_traj=False,printer=None):
         traj_est_full.transform(lie.se3(r_a, t_a))
         traj_est = traj_est_full
 
-    return r_a, t_a, s, traj_est, traj_ref    
+    return r_a, t_a, s, traj_est, traj_ref
 
 def align_full_traj(traj_est_full,stream,printer):
 
@@ -65,7 +65,7 @@ def align_full_traj(traj_est_full,stream,printer):
         traj_est.append(traj_est_full[i])
         traj_ref.append(stream.poses[i])
         timestamps.append(float(i))
-    
+
     from evo.core.trajectory import PoseTrajectory3D
 
     traj_est =PoseTrajectory3D(poses_se3=traj_est,timestamps=timestamps)
@@ -75,7 +75,7 @@ def align_full_traj(traj_est_full,stream,printer):
 
     traj_ref, traj_est = sync.associate_trajectories(traj_ref, traj_est)
     r_a, t_a, s = traj_est.align(traj_ref, correct_scale=True)
-    return r_a, t_a, s, traj_est, traj_ref    
+    return r_a, t_a, s, traj_est, traj_ref
 
 
 def traj_eval_and_plot(traj_est, traj_ref, plot_parent_dir, plot_name,printer):
@@ -114,7 +114,7 @@ def kf_traj_eval(npz_path, plot_parent_dir,plot_name, stream, logger,printer):
     r_a, t_a, s, traj_est, traj_ref = align_kf_traj(npz_path, stream,printer=printer)
 
     offline_video = dict(np.load(npz_path))
-    
+
     import os
     if not os.path.exists(plot_parent_dir):
         os.makedirs(plot_parent_dir)
@@ -151,20 +151,21 @@ def full_traj_fill(traj_filler, mapper, stream, fast_mode=False):
     return traj_est
 
 
-def full_traj_eval(traj_est, stream, printer, logger, plot_parent_dir, plot_name):
+def full_traj_eval(traj_est, stream, printer, logger, plot_parent_dir, plot_name, csv_file=None):
 
     import os
     if not os.path.exists(plot_parent_dir):
         os.makedirs(plot_parent_dir)
-        
-    save_traj(traj_est,f'{plot_parent_dir}/est_poses_full.txt')
 
+    save_traj(traj_est,f'{plot_parent_dir}/est_poses_full.txt')
+    if csv_file is not None:
+        save_traj_vslamlab(traj_est, csv_file, timestamps=stream.timestamps)
 
     if isinstance(stream, RGB_NoPose):
         # We don't have GT pose to evaluate
         return traj_est, None, None
 
-    r_a, t_a, s, traj_est, traj_ref = align_full_traj(traj_est, stream, printer)    
+    r_a, t_a, s, traj_est, traj_ref = align_full_traj(traj_est, stream, printer)
 
     ape_statistics = traj_eval_and_plot(traj_est,traj_ref,plot_parent_dir,plot_name,printer)
     output_str = "#"*10+"Full traj"+"#"*10+"\n"
@@ -175,7 +176,7 @@ def full_traj_eval(traj_est, stream, printer, logger, plot_parent_dir, plot_name
     printer.print(output_str,FontColor.EVAL)
     printer.print("#"*29,FontColor.EVAL)
 
-    
+
     out_path=f'{plot_parent_dir}/metrics_full_traj.txt'
     with open(out_path, 'w+') as fp:
         fp.write(output_str)
@@ -195,3 +196,16 @@ def save_traj(traj_est,output_file):
 
     with open(output_file, "w") as f:
         f.writelines(tum_poses)
+
+def save_traj_vslamlab(traj_est, output_file, timestamps=None):
+    N = traj_est.shape[0]
+    lines = ["ts (ns),tx (m),ty (m),tz (m),qx,qy,qz,qw\n"]
+    for i in range(N):
+        T = traj_est[i, :, :]
+        r = Rotation.from_matrix(T[:3, :3])
+        q = r.as_quat()
+        ts = int(timestamps[i] * 1e9) if timestamps is not None else i
+        lines.append(f"{ts},{T[0,3]:.14f},{T[1,3]:.14f},{T[2,3]:.14f},{q[0]:.15f},{q[1]:.15f},{q[2]:.15f},{q[3]:.15f}\n")
+
+    with open(output_file, "w") as f:
+        f.writelines(lines)
